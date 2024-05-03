@@ -22,6 +22,8 @@ OUTPUTS= $(addprefix $(OUTDIR)/, $(TARGETS))
 
 all: $(TARGETS)
 
+
+
 $(TARGETS):
 	$(CC_C) $(CFLAGS) $@.c -o $(OUTDIR)/$@ -lpthread
 
