@@ -3,6 +3,7 @@
 
 # Edit this file to compile extra C files into their own programs.
 TARGETS= updown
+SRCS= io.c
 
 
 PUBDIR = $(HOME)/shared
@@ -19,14 +20,16 @@ CFLAGS += -pg
 
 # Convert the targets to full-path executables to delete.
 OUTPUTS= $(addprefix $(OUTDIR)/, $(TARGETS))
+OBJECTS=$(SRCS:.c=.o)
+
 
 all: $(TARGETS)
 
+updown: io.o
+	$(CC_C) $(CFLAGS) $@.c $(OUTDIR)/$< -o $(OUTDIR)/$@ -lpthread
 
-
-$(TARGETS):
-	$(CC_C) $(CFLAGS) $@.c -o $(OUTDIR)/$@ -lpthread
-
+$(OBJECTS): %.o: %.c
+	$(CC_C) $(CFLAGS) -c $< -o $(OUTDIR)/$@
 
 clean:
 	rm -f $(OUTPUTS)

@@ -5,84 +5,132 @@
 #include <errno.h>	
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
 #include "io.h"
 
-#define JOYSTICK_UP_VALUE GPIO_PREFIX "26/value"
-#define JOYSTICK_UP_DIRECTION GPIO_PREFIX "26/direction"
-#define JOYSTICK_UP_EDGE GPIO_PREFIX "26/edge"
 
-#define LED_BRIGHTNESS LED_PREFIX "0/brightness"
 
-int WaitForGpioEdge(char* gpio_file)
+
+int WaitForGpioEdge(char** gpio_files, int count)
 {   
-    int gpiofd = open(gpio_file, O_RDONLY | O_NONBLOCK);
-    if (gpiofd == -1) {
-        printf("Failed to open GPIO value file (%s): %s", gpio_file, strerror(errno));
-        return -1;
-    }
-
     int epollfd = epoll_create1(0);
     if (epollfd == -1)
     {
         printf("Error creating epoll fd: %s", strerror(errno));
         return -1;
     }
-    
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLPRI;
-    ev.data.fd = gpiofd;
 
-    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, gpiofd, &ev) == -1)
+    struct epoll_event events[count];
+    int gpio_fds[count];
+
+    for(int i = 0; i < count; i++)
     {
-        printf("Failed to add GPIO file descriptor to epoll instance: %s", strerror(errno));
-        return -1;
+        int gpiofd = open(gpio_files[i], O_RDONLY | O_NONBLOCK);
+        gpio_fds[i] = gpiofd;
+        if (gpiofd == -1) {
+            printf("Failed to open GPIO value file (%s): %s", gpio_files[i], strerror(errno));
+            return -1;
+        }
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLET | EPOLLPRI;
+        ev.data.fd = gpiofd;
+
+        if(epoll_ctl(epollfd, EPOLL_CTL_ADD, gpiofd, &ev) == -1)
+        {
+            printf("Failed to add GPIO file descriptor to epoll instance: %s", strerror(errno));
+            return -1;
+        }
     }
 
     for (int i = 0; i < 2; i++) {
-		int waitRet = epoll_wait(epollfd, &ev, 
-				1,                // maximum # events
+		int waitRet = epoll_wait(epollfd, events, 
+				count,                // maximum # events
 				-1);              // timeout in ms, -1 = wait indefinite; 0 = returne immediately
 
 		if (waitRet == -1){
 			fprintf(stderr, "ERROR: epoll_wait() failed (%d) = %s\n", waitRet, strerror(errno));
-			close(gpiofd);
+			for(int i = 0; i < count; i++)
+            {
+                close(gpio_fds[i]);
+            }
 			close(epollfd);
 			return -1;
 		}
-        printf("waitret: %d\n", waitRet);
 	}
-    close(gpiofd);
+    for(int i = 0; i < count; i++)
+    {
+        close(gpio_fds[i]);
+    }
     close(epollfd);
     return 0;
 }
 
-int closeEpoll(int epollfd)
-{
-    if (close(epollfd)) {
-		printf("Failed to close epoll file descriptor: %s", strerror(errno));
-		return 1;
-	}
-    return 0;
+joystick_vals getJoystickVals() {
+    char* joystick_filenames[4] = {
+        JOYSTICK_UP VALUE, 
+        JOYSTICK_DOWN VALUE,
+        JOYSTICK_LEFT VALUE,
+        JOYSTICK_RIGHT VALUE,
+    };
+    joystick_vals values = 0;
+
+    for(int i = 0; i < 4; i++)
+    {
+        char buff[10];
+        readLine(joystick_filenames[i], buff, 10);
+        if(buff[0] != '0' && buff[0] != '1')
+        {
+            printf("Unexpected joystick value in %s\n", joystick_filenames[i]);
+            return -1;
+        }
+        values = (values<<1) + (buff[0] - 48);
+    }
+    return values;
 }
+
+void configJoysticks(){
+    writeFile(JOYSTICK_UP DIRECTION, "in");
+    writeFile(JOYSTICK_UP EDGE, "both");
+    writeFile(JOYSTICK_DOWN DIRECTION, "in");
+    writeFile(JOYSTICK_DOWN EDGE, "both");
+    writeFile(JOYSTICK_LEFT DIRECTION, "in");
+    writeFile(JOYSTICK_LEFT EDGE, "both");    
+    writeFile(JOYSTICK_RIGHT DIRECTION, "in");
+    writeFile(JOYSTICK_RIGHT EDGE, "both");
+}
+    
 
 int main(int argc, char* args[])
 { 
-    writeFile(JOYSTICK_UP_DIRECTION, "in");
-    writeFile(JOYSTICK_UP_EDGE, "both");
+    configJoysticks();
+    char* joystick_filenames[4] = {
+        JOYSTICK_DOWN VALUE, 
+        JOYSTICK_UP VALUE,
+        JOYSTICK_LEFT VALUE,
+        JOYSTICK_RIGHT VALUE,
+    };
     
     while(1)
     {
-        //get ready
+        printf("Get Ready!\n");
 
         //if pressing joystick
         //please let go
         //loop polling until they let go
-        printf("Get Ready!\n");
+        joystick_vals values;
+        if(values = getJoystickVals() == -1) exit(1);
+        if (values != 15)
+        {
+            printf("Please let go of the stick\n");
+            while(values!=15)
+            {
+                if(WaitForGpioEdge(joystick_filenames,4) == -1) exit(1);
+                if(values = getJoystickVals() == -1) exit(1);
+            }
+        }
         
-        int ret = WaitForGpioEdge(JOYSTICK_UP_VALUE);
-        if (ret == -1) {
-			exit(EXIT_FAILURE);
-		}
+        struct timespec delay = { }
+        
     }
     
     
