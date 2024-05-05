@@ -9,70 +9,13 @@
 #include "io.h"
 
 
-
-
-int WaitForGpioEdge(char** gpio_files, int count)
-{   
-    int epollfd = epoll_create1(0);
-    if (epollfd == -1)
-    {
-        printf("Error creating epoll fd: %s", strerror(errno));
-        return -1;
-    }
-
-    struct epoll_event events[count];
-    int gpio_fds[count];
-
-    for(int i = 0; i < count; i++)
-    {
-        int gpiofd = open(gpio_files[i], O_RDONLY | O_NONBLOCK);
-        gpio_fds[i] = gpiofd;
-        if (gpiofd == -1) {
-            printf("Failed to open GPIO value file (%s): %s", gpio_files[i], strerror(errno));
-            return -1;
-        }
-        struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET | EPOLLPRI;
-        ev.data.fd = gpiofd;
-
-        if(epoll_ctl(epollfd, EPOLL_CTL_ADD, gpiofd, &ev) == -1)
-        {
-            printf("Failed to add GPIO file descriptor to epoll instance: %s", strerror(errno));
-            return -1;
-        }
-    }
-
-    for (int i = 0; i < 2; i++) {
-		int waitRet = epoll_wait(epollfd, events, 
-				count,                // maximum # events
-				-1);              // timeout in ms, -1 = wait indefinite; 0 = returne immediately
-
-		if (waitRet == -1){
-			fprintf(stderr, "ERROR: epoll_wait() failed (%d) = %s\n", waitRet, strerror(errno));
-			for(int i = 0; i < count; i++)
-            {
-                close(gpio_fds[i]);
-            }
-			close(epollfd);
-			return -1;
-		}
-	}
-    for(int i = 0; i < count; i++)
-    {
-        close(gpio_fds[i]);
-    }
-    close(epollfd);
-    return 0;
-}
-
-joystick_vals getJoystickVals() {
+enum Joystick getJoystickVal() {
     char* joystick_filenames[4] = {
         JOYSTICK_UP VALUE, 
         JOYSTICK_DOWN VALUE,
         JOYSTICK_LEFT VALUE,
         JOYSTICK_RIGHT VALUE,
     };
-    joystick_vals values = 0;
 
     for(int i = 0; i < 4; i++)
     {
@@ -83,9 +26,9 @@ joystick_vals getJoystickVals() {
             printf("Unexpected joystick value in %s\n", joystick_filenames[i]);
             return -1;
         }
-        values = (values<<1) + (buff[0] - 48);
+        if (buff[0] == '0') return i;
     }
-    return values;
+    return NONE;
 }
 
 void configJoysticks(){
@@ -98,11 +41,42 @@ void configJoysticks(){
     writeFile(JOYSTICK_RIGHT DIRECTION, "in");
     writeFile(JOYSTICK_RIGHT EDGE, "both");
 }
-    
+
+void resetLights()
+{
+    writeFile(LED_0 TRIGGER, "none");
+    writeFile(LED_1 TRIGGER, "none");
+    writeFile(LED_2 TRIGGER, "none");
+    writeFile(LED_3 TRIGGER, "none");
+    writeFile(LED_0 BRIGHTNESS, "0");
+    writeFile(LED_1 BRIGHTNESS, "0");
+    writeFile(LED_2 BRIGHTNESS, "0");
+    writeFile(LED_3 BRIGHTNESS, "0");
+}
+
+
+
+int randRange(int min, int max)
+{
+    int offset = max - min + 1;
+    return (rand() % offset) + min;
+}
+
+void sleepMiliseconds(int min, int max)
+{
+    int rand_miliseconds = randRange(500, 3000);
+    int seconds = rand_miliseconds / 1000;
+    int nanoseconds = (rand_miliseconds % 1000) * 1000000;
+    struct timespec delay = {seconds, nanoseconds};
+    nanosleep(&delay, (struct timespec*) NULL);
+}
+
 
 int main(int argc, char* args[])
 { 
     configJoysticks();
+    resetLights();
+
     char* joystick_filenames[4] = {
         JOYSTICK_DOWN VALUE, 
         JOYSTICK_UP VALUE,
@@ -114,25 +88,49 @@ int main(int argc, char* args[])
     {
         printf("Get Ready!\n");
 
-        //if pressing joystick
-        //please let go
-        //loop polling until they let go
-        joystick_vals values;
-        if(values = getJoystickVals() == -1) exit(1);
-        if (values != 15)
+        //wait until player is not using the stick
+        enum Joystick value;
+        if((value = getJoystickVal()) == -1) exit(1);
+        if (value != NONE)
         {
             printf("Please let go of the stick\n");
-            while(values!=15)
+            while(value != NONE)
             {
-                if(WaitForGpioEdge(joystick_filenames,4) == -1) exit(1);
-                if(values = getJoystickVals() == -1) exit(1);
+                if((WaitForGpioEdge(joystick_filenames,4)) == -1) exit(1);
+                if((value = getJoystickVal()) == -1) exit(1);
             }
+            printf("Get Ready!\n");
         }
+
+        //wait .5 to 3 seconds
+        sleepMiliseconds(500,3000);
         
-        struct timespec delay = { }
-        
+        if((value = getJoystickVal()) == -1) exit(1);
+        if(value == UP || value == DOWN) 
+        {
+            printf("Too Soon!\n");
+        } else 
+        {
+            enum Joystick direction = randRange(0,1);
+            switch(direction)
+            {
+                case UP:    
+                    printf("UP!\n"); 
+                    writeFile(LED_0 BRIGHTNESS, "1"); 
+                    break;
+                case DOWN:  
+                    printf("DOWN!\n"); 
+                    writeFile(LED_3 BRIGHTNESS, "1"); 
+                    break;
+                default: break;
+            }
+
+            clock_t time_start = clock();
+            if((WaitForGpioEdge(joystick_filenames,4)) == -1) exit(1);
+            if((value = getJoystickVal()) == -1) exit(1);
+            
+        }
     }
-    
     
     // FILE *pLedTriggerFile = fopen(LED_BRIGHTNESS, "w");
     

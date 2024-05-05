@@ -4,30 +4,33 @@
 #define GPIO_PREFIX "/sys/class/gpio/gpio"
 #define GPIO_EXPORT "/sys/class/gpio/export"
 
-#define JOYSTICK_UP     GPIO_PREFIX "26"
-#define JOYSTICK_DOWN   GPIO_PREFIX "46"
-#define JOYSTICK_LEFT   GPIO_PREFIX "65"
-#define JOYSTICK_RIGHT  GPIO_PREFIX "47"
+#define LED_0 LED_PREFIX "0/"
+#define LED_1 LED_PREFIX "1/"
+#define LED_2 LED_PREFIX "2/"
+#define LED_3 LED_PREFIX "3/"
 
-#define VALUE       "/value"
-#define DIRECTION   "/direction"
-#define EDGE        "/edge"
+#define JOYSTICK_UP     GPIO_PREFIX "26/"
+#define JOYSTICK_DOWN   GPIO_PREFIX "46/"
+#define JOYSTICK_LEFT   GPIO_PREFIX "65/"
+#define JOYSTICK_RIGHT  GPIO_PREFIX "47/"
 
-#define LED_BRIGHTNESS LED_PREFIX "0/brightness"
+#define VALUE       "value"
+#define DIRECTION   "direction"
+#define EDGE        "edge"
+#define TRIGGER     "trigger"
+#define BRIGHTNESS  "brightness"
 
 int exportGPIO(char* pinloc, int number);
 int writeFile(char* filename, char* value);
 int readLine(char* filename, char* buff, unsigned int maxLength);
+int WaitForGpioEdge(char** gpio_files, int count);
 
-
-//lsb up, down, left, right
-typedef unsigned char joystick_vals;
-
-enum joystick_name {
-    up = 1,
-    down = 2,
-    left = 4,
-    right = 8,
+enum Joystick {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+    NONE,
 };
 
 #endif
