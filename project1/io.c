@@ -52,7 +52,7 @@ int readLine(char* filename, char* buff, unsigned int maxLength)
     return bytes_read;
 }
 
-int WaitForGpioEdge(char** gpio_files, int count)
+int WaitForGpioEdge(char** gpio_files, int count, int timeout)
 {   
     int epollfd = epoll_create1(0);
     if (epollfd == -1)
@@ -86,7 +86,7 @@ int WaitForGpioEdge(char** gpio_files, int count)
     for (int i = 0; i < 2; i++) {
 		int waitRet = epoll_wait(epollfd, events, 
 				count,                // maximum # events
-				-1);              // timeout in ms, -1 = wait indefinite; 0 = returne immediately
+				timeout);              // timeout in ms, -1 = wait indefinite; 0 = returne immediately
 
 		if (waitRet == -1){
 			fprintf(stderr, "ERROR: epoll_wait() failed (%d) = %s\n", waitRet, strerror(errno));

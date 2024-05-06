@@ -23,7 +23,7 @@
 int exportGPIO(char* pinloc, int number);
 int writeFile(char* filename, char* value);
 int readLine(char* filename, char* buff, unsigned int maxLength);
-int WaitForGpioEdge(char** gpio_files, int count);
+int WaitForGpioEdge(char** gpio_files, int count, int timeout);
 
 enum Joystick {
     UP,
